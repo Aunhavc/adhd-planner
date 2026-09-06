@@ -28,10 +28,20 @@
 .planrow .foot label{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-2)}
 .dirty{color:var(--warn);font-size:12.5px}
 select.grant{border:1px solid var(--line);background:var(--surface);color:var(--ink);
-  border-radius:7px;padding:4px 8px;font:inherit;font-size:12.5px;cursor:pointer}
+  border-radius:7px;padding:5px 9px;font:inherit;font-size:12.5px;cursor:pointer;
+  min-width:118px;white-space:nowrap}
 select.grant:hover{border-color:var(--accent);color:var(--accent)}
 select.grant:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 select.grant:disabled{opacity:.5;cursor:wait}
+select.statussel{border:1px solid transparent;font:inherit;font-size:12.5px;font-weight:600;
+  padding:4px 10px;border-radius:999px;cursor:pointer;appearance:none;-webkit-appearance:none;
+  padding-inline-end:24px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;background-size:11px}
+select.statussel:hover{border-color:currentColor}
+select.statussel:focus{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+select.statussel:disabled{opacity:.5;cursor:wait}
+select.statussel option{background:var(--surface);color:var(--ink);font-weight:400}
 @media (max-width:700px){ .fields{grid-template-columns:1fr} }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%97%91%3C/text%3E%3C/svg%3E">
@@ -192,6 +202,25 @@ const FILTERS = [
   ['trial', 'ทดลองใช้'], ['expired', 'หมดอายุ'], ['suspended', 'ระงับ']
 ];
 
+/* สถานะที่แอดมินตั้งเองได้ (ตรงกับ admin_set_status ในฐานข้อมูล) */
+const SETTABLE = [
+  ['active',    'ใช้งานอยู่'],
+  ['suspended', 'ระงับ'],
+  ['canceled',  'ยกเลิก']
+];
+/* สถานะที่ระบบตั้งเอง แก้ตรง ๆ ไม่ได้ แต่ต้องแสดงให้เห็น */
+const SYSTEM_ONLY = { trialing: 'ทดลองใช้', past_due: 'ค้างชำระ' };
+
+function statusSelect(u, st) {
+  const cur = u.status;
+  const extra = SYSTEM_ONLY[cur]
+    ? `<option value="${cur}" selected disabled>${SYSTEM_ONLY[cur]}</option>` : '';
+  const opts = SETTABLE.map(([v, t]) =>
+    `<option value="${v}" ${cur === v ? 'selected' : ''}>${t}</option>`).join('');
+  return `<select class="statussel pill ${STATUS[st].cls}" data-status="${u.id}"
+            title="เปลี่ยนสถานะสิทธิ์ของผู้ใช้">${extra}${opts}</select>`;
+}
+
 let USERS = [], filter = 'all', query = '';
 
 async function fetchUsers() {
@@ -237,12 +266,12 @@ function drawUsers() {
              <span>${esc(u.email)}</span></div>
       </div></td>
       <td data-label="แผน">${esc(PLAN_LABEL[u.plan] || u.plan)}</td>
-      <td data-label="สถานะ"><span class="pill ${STATUS[st].cls}">${STATUS[st].label}</span></td>
+      <td data-label="สถานะ">${statusSelect(u, st)}</td>
       <td data-label="หมดอายุ" class="mono">${u.plan === 'lifetime' ? 'ไม่มีวันหมด' : fmtDate(u.current_period_end)}</td>
       <td data-label="เข้าใช้ล่าสุด" class="mono">${fmtDate(u.last_seen_at)}</td>
       <td data-label="ยอดรวม" class="mono">${fmtBaht(u.total_paid_minor)}</td>
-      <td><div class="acts">
-        <select class="act grant" data-grant="${u.id}" aria-label="ให้สิทธิ์">
+      <td data-label="ให้สิทธิ์"><div class="acts">
+        <select class="act grant" data-grant="${u.id}" aria-label="ให้สิทธิ์เพิ่ม">
           <option value="">ให้สิทธิ์…</option>
           <option value="d30">ต่อ 30 วัน</option>
           <option value="d90">ต่อ 90 วัน</option>
@@ -250,9 +279,6 @@ function drawUsers() {
           <option value="yearly">ให้ 1 ปี</option>
           <option value="lifetime">ตลอดชีพ</option>
         </select>
-        <button class="act ${u.status === 'suspended' ? '' : 'warn'}"
-                data-a="${u.status === 'suspended' ? 'unsuspend' : 'suspend'}"
-                data-id="${u.id}">${u.status === 'suspended' ? 'คืนสิทธิ์' : 'ระงับ'}</button>
       </div></td>
     </tr>`;
   }).join('') : `<tr><td colspan="7" class="none">ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข</td></tr>`;
@@ -629,6 +655,39 @@ const GRANTS = {
 };
 
 document.addEventListener('change', async e => {
+
+  /* เปลี่ยนสถานะจากช่องในคอลัมน์ "สถานะ" */
+  const ss = e.target.closest('[data-status]');
+  if (ss) {
+    const id = ss.dataset.status;
+    const u = USERS.find(x => x.id === id);
+    const who = u?.full_name || u?.email || 'ผู้ใช้รายนี้';
+    const label = (SETTABLE.find(([v]) => v === ss.value) || [, ss.value])[1];
+    ss.disabled = true;
+    try {
+      const { error } = await supabase.rpc('admin_set_status', { target: id, new_status: ss.value });
+      if (error) throw error;
+      await reloadUsers();
+
+      // ตั้งเป็น "ใช้งานอยู่" แต่วันหมดอายุยังเป็นอดีต = ยังใช้งานไม่ได้จริง ต้องบอกให้ชัด
+      const after = USERS.find(x => x.id === id);
+      if (ss.value === 'active' && after && !after.has_access) {
+        showError(new Error(
+          `เปลี่ยนสถานะ ${who} เป็น "ใช้งานอยู่" แล้ว แต่ยังใช้งานไม่ได้ ` +
+          `เพราะวันหมดอายุคือ ${fmtDate(after.current_period_end)} ซึ่งผ่านไปแล้ว — ` +
+          `ต้องเลือก "ให้สิทธิ์…" เพื่อต่ออายุด้วย`));
+        toast('เปลี่ยนสถานะแล้ว แต่ยังต้องต่ออายุ');
+      } else {
+        toast(`เปลี่ยนสถานะ ${who} เป็น "${label}" แล้ว`);
+      }
+    } catch (err) {
+      showError(err);
+      ss.disabled = false;
+      drawUsers();
+    }
+    return;
+  }
+
   const sel = e.target.closest('[data-grant]');
   if (sel) {
     const g = GRANTS[sel.value];
