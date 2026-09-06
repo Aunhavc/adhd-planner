@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>จัดการระบบ · Ultimate ADHD Planner</title>
+<link rel="stylesheet" href="styles/console.css">
+<style>
+[hidden]{display:none!important}
+.tabs{display:flex;gap:3px;background:var(--surface-2);border-radius:10px;padding:3px;margin-bottom:20px;width:fit-content}
+.tabs button{border:0;background:none;padding:8px 16px;border-radius:8px;font-size:14px;color:var(--ink-2)}
+.tabs button[aria-current="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:var(--shadow)}
+.planrow{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow)}
+.planrow.off{opacity:.55}
+.planrow .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.planrow .key{font-family:var(--mono);font-size:12.5px;color:var(--muted);
+  background:var(--surface-2);border-radius:6px;padding:3px 9px}
+.fields{display:grid;grid-template-columns:2fr 1fr 1.4fr;gap:10px}
+.fields label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.fields input,.planrow textarea,.planrow select{
+  width:100%;background:var(--ground);border:1px solid var(--line);border-radius:8px;
+  padding:8px 11px;font:inherit;font-size:14px;color:var(--ink)}
+.fields input:focus,.planrow textarea:focus,.planrow select:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.planrow textarea{margin-top:10px;min-height:74px;resize:vertical;line-height:1.6;font-size:13.5px}
+.planrow .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.planrow .foot label{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-2)}
+.dirty{color:var(--warn);font-size:12.5px}
+@media (max-width:700px){ .fields{grid-template-columns:1fr} }
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%97%91%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div id="bar"></div>
+<div class="wrap">
+  <div id="gate" class="loading">กำลังตรวจสอบสิทธิ์…</div>
+
+  <section id="console" hidden>
+    <div class="tabs" role="tablist">
+      <button data-tab="users" aria-current="true">ผู้ใช้</button>
+      <button data-tab="plans" aria-current="false">แผนราคา</button>
+      <button data-tab="settings" aria-current="false">ตั้งค่า</button>
+    </div>
+
+    <div id="err"></div>
+
+    <!-- ================= ผู้ใช้ ================= -->
+    <section id="tab-users">
+      <div class="head">
+        <div>
+          <h1>จัดการผู้ใช้</h1>
+          <p>ให้สิทธิ์ ต่ออายุ และระงับการใช้งาน — มีผลทันทีที่ผู้ใช้รีเฟรช</p>
+        </div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="tools">
+        <div class="chips" id="chips"></div>
+        <span class="grow"></span>
+        <input class="search" id="q" type="search" placeholder="ค้นหาชื่อหรืออีเมล…" aria-label="ค้นหาผู้ใช้">
+      </div>
+
+      <div class="tablewrap">
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th class="stripe">ผู้ใช้</th><th>แผน</th><th>สถานะ</th><th>หมดอายุ</th>
+              <th>เข้าใช้ล่าสุด</th><th>ยอดรวม</th><th></th>
+            </tr></thead>
+            <tbody id="rows"><tr><td colspan="7" class="loading">กำลังโหลด…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="foot">
+          <span id="count"></span>
+          <button class="btn quiet" id="refresh">รีเฟรช</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= แผนราคา ================= -->
+    <section id="tab-plans" hidden>
+      <div class="head">
+        <div>
+          <h1>แผนราคา</h1>
+          <p>แก้แล้วมีผลกับหน้า “แผนและการชำระเงิน” ทันที ไม่ต้องแก้ไฟล์</p>
+        </div>
+      </div>
+
+      <div class="banner warn">
+        <span class="grow">
+          <b>ตัวเลขราคาที่นี่ใช้แสดงผลเท่านั้น</b>
+          เงินที่ถูกตัดจริงยึดตามราคาใน Stripe เสมอ — ถ้าเปิดขายจริงต้องแก้ราคาใน Stripe ให้ตรงกันด้วย
+        </span>
+      </div>
+
+      <div id="plans" class="loading">กำลังโหลดแผน…</div>
+
+      <div class="row" style="display:flex;gap:10px;margin-top:6px">
+        <button class="btn" id="addPlan">+ เพิ่มแผนใหม่</button>
+        <button class="btn quiet" id="reloadPlans">โหลดใหม่</button>
+      </div>
+    </section>
+
+    <!-- ================= ตั้งค่าทั่วไป ================= -->
+    <section id="tab-settings" hidden>
+      <div class="head">
+        <div>
+          <h1>ตั้งค่าทั่วไป</h1>
+          <p>ค่าที่ปรับบ่อย เก็บในฐานข้อมูล แก้ที่นี่แล้วมีผลทันที ไม่ต้องแก้ไฟล์</p>
+        </div>
+      </div>
+      <h2 style="font-size:17px;margin-bottom:6px">ผู้ดูแลระบบ</h2>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:13.5px">
+        ใส่อีเมลไว้ล่วงหน้าได้ — คนที่ยังไม่เคยสมัครจะได้สิทธิ์แอดมินอัตโนมัติเมื่อล็อกอินครั้งแรก
+      </p>
+      <div id="admins" class="loading">กำลังโหลด…</div>
+      <div class="row" style="display:flex;gap:8px;margin:10px 0 30px;flex-wrap:wrap">
+        <input class="search" id="newAdmin" type="email" placeholder="เพิ่มอีเมลผู้ดูแล…"
+               style="flex:1;min-width:220px">
+        <button class="btn primary" id="addAdmin">+ เพิ่ม</button>
+      </div>
+
+      <h2 style="font-size:17px;margin-bottom:12px">ค่าทั่วไป</h2>
+      <div id="settings" class="loading">กำลังโหลด…</div>
+    </section>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script type="module">
+import {
+  supabase, configured, configError, requireSession, getAccount, renderAppBar,
+  displayStatus, fmtDate, fmtBaht, esc, PLAN_LABEL
+} from './lib/auth.js';
+
+const $ = id => document.getElementById(id);
+const gate = $('gate'), panel = $('console');
+
+if (!configured) { configError(gate); throw new Error('config'); }
+
+const session = await requireSession();
+if (!session) throw new Error('no session');
+
+const me = await getAccount();
+$('bar').innerHTML = renderAppBar(me, 'admin.html');
+
+if (!me.is_admin) {
+  gate.className = '';
+  gate.innerHTML = `<div class="errbox">
+    <b>หน้านี้สำหรับแอดมินเท่านั้น</b>
+    บัญชี <code>${esc(me.email)}</code> ยังไม่ใช่แอดมิน<br><br>
+    ตั้งตัวเองเป็นแอดมินด้วยคำสั่งนี้ใน Supabase → SQL Editor:<br>
+    <code>update public.profiles set role = 'admin' where email = '${esc(me.email)}';</code>
+  </div>`;
+  throw new Error('ไม่ใช่แอดมิน');
+}
+
+gate.remove();
+panel.hidden = false;
+
+let tt;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600);
+}
+function showError(e) {
+  $('err').innerHTML = `<div class="errbox"><b>ทำรายการไม่สำเร็จ</b><code>${esc(e.message || e)}</code></div>`;
+}
+const clearError = () => { $('err').innerHTML = ''; };
+
+/* =============================================================
+   แท็บผู้ใช้
+   ============================================================= */
+const STATUS = {
+  active:    { label: 'ใช้งานอยู่',  cls: 'p-active'    },
+  expiring:  { label: 'ใกล้หมดอายุ', cls: 'p-expiring'  },
+  trial:     { label: 'ทดลองใช้',    cls: 'p-trial'     },
+  expired:   { label: 'หมดอายุ',     cls: 'p-expired'   },
+  suspended: { label: 'ระงับ',       cls: 'p-suspended' }
+};
+const FILTERS = [
+  ['all', 'ทั้งหมด'], ['active', 'ใช้งานอยู่'], ['expiring', 'ใกล้หมดอายุ'],
+  ['trial', 'ทดลองใช้'], ['expired', 'หมดอายุ'], ['suspended', 'ระงับ']
+];
+
+let USERS = [], filter = 'all', query = '';
+
+async function fetchUsers() {
+  const { data, error } = await supabase
+    .from('admin_users').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  USERS = data || [];
+}
+
+function visibleUsers() {
+  const q = query.trim().toLowerCase();
+  return USERS.filter(u =>
+    (filter === 'all' || displayStatus(u) === filter) &&
+    (!q || (u.full_name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)));
+}
+
+function drawUsers() {
+  const counts = { all: USERS.length };
+  FILTERS.slice(1).forEach(([k]) => counts[k] = USERS.filter(u => displayStatus(u) === k).length);
+
+  const paying = USERS.filter(u => u.has_access && u.status !== 'trialing').length;
+  const revenue = USERS.reduce((s, u) => s + (u.total_paid_minor || 0), 0);
+
+  $('stats').innerHTML = `
+    <div class="stat"><span>ผู้ใช้ทั้งหมด</span><b>${USERS.length}</b><em>ลงทะเบียนแล้ว</em></div>
+    <div class="stat"><span>จ่ายแล้วและใช้งานได้</span><b>${paying}</b><em>ไม่นับผู้ทดลองใช้</em></div>
+    <div class="stat ${counts.expiring ? 'alert' : ''}"><span>ใกล้หมดอายุใน 7 วัน</span><b>${counts.expiring}</b><em>ควรส่งอีเมลเตือน</em></div>
+    <div class="stat"><span>รายได้สะสม</span><b>${fmtBaht(revenue)}</b><em>จากประวัติการจ่ายจริง</em></div>`;
+
+  $('chips').innerHTML = FILTERS.map(([k, t]) =>
+    `<button class="chip" data-f="${k}" aria-pressed="${filter === k}">${t}<span class="n">${counts[k] ?? 0}</span></button>`).join('');
+
+  const list = visibleUsers();
+  $('rows').innerHTML = list.length ? list.map(u => {
+    const st = displayStatus(u);
+    const name = u.full_name || u.email || '—';
+    return `<tr class="s-${st}">
+      <td class="stripe"><div class="who">
+        ${u.avatar_url
+          ? `<img class="av" src="${esc(u.avatar_url)}" alt="" referrerpolicy="no-referrer">`
+          : `<div class="av" aria-hidden="true">${esc((name.trim()[0] || '?').toUpperCase())}</div>`}
+        <div><b>${esc(name)}${u.role === 'admin' ? ' <span class="pill p-trial">แอดมิน</span>' : ''}</b>
+             <span>${esc(u.email)}</span></div>
+      </div></td>
+      <td data-label="แผน">${esc(PLAN_LABEL[u.plan] || u.plan)}</td>
+      <td data-label="สถานะ"><span class="pill ${STATUS[st].cls}">${STATUS[st].label}</span></td>
+      <td data-label="หมดอายุ" class="mono">${u.plan === 'lifetime' ? 'ไม่มีวันหมด' : fmtDate(u.current_period_end)}</td>
+      <td data-label="เข้าใช้ล่าสุด" class="mono">${fmtDate(u.last_seen_at)}</td>
+      <td data-label="ยอดรวม" class="mono">${fmtBaht(u.total_paid_minor)}</td>
+      <td><div class="acts">
+        <button class="act" data-a="extend" data-id="${u.id}">ต่อ 30 วัน</button>
+        <button class="act ${u.status === 'suspended' ? '' : 'warn'}"
+                data-a="${u.status === 'suspended' ? 'unsuspend' : 'suspend'}"
+                data-id="${u.id}">${u.status === 'suspended' ? 'คืนสิทธิ์' : 'ระงับ'}</button>
+      </div></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" class="none">ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข</td></tr>`;
+
+  $('count').textContent = `แสดง ${list.length} จาก ${USERS.length} คน`;
+}
+
+async function reloadUsers() {
+  try { await fetchUsers(); clearError(); drawUsers(); }
+  catch (e) { showError(e); }
+}
+
+/* =============================================================
+   แท็บแผนราคา
+   ============================================================= */
+const PERIODS = [['monthly', 'รายเดือน'], ['yearly', 'รายปี'], ['once', 'จ่ายครั้งเดียว']];
+let PLANS = [];
+
+async function fetchPlans() {
+  const { data, error } = await supabase.from('plans').select('*').order('sort');
+  if (error) throw error;
+  PLANS = data || [];
+}
+
+function drawPlans() {
+  const box = $('plans');
+  box.className = '';
+  if (!PLANS.length) {
+    box.innerHTML = `<div class="errbox">
+      <b>ยังไม่มีตารางแผนราคา</b>
+      ต้องรันไฟล์ <code>saas/supabase/04_plans.sql</code> ใน SQL Editor ก่อน
+    </div>`;
+    return;
+  }
+
+  box.innerHTML = PLANS.map((p, i) => `
+    <div class="planrow ${p.active ? '' : 'off'}" data-i="${i}">
+      <div class="top">
+        <span class="key">${esc(p.key)}</span>
+        ${p.highlight ? '<span class="pill p-active">คุ้มที่สุด</span>' : ''}
+        ${p.stripe_price_id ? '<span class="pill p-trial">ต่อ Stripe แล้ว</span>' : '<span class="pill p-expired">ยังไม่เปิดขาย</span>'}
+        <span class="grow"></span>
+        <span class="dirty" data-dirty="${i}"></span>
+        <button class="btn" data-p="save" data-i="${i}">บันทึก</button>
+        <button class="act warn" data-p="del" data-i="${i}">ลบ</button>
+      </div>
+
+      <div class="fields">
+        <div><label>ชื่อแผนที่ลูกค้าเห็น</label>
+          <input data-f="label" data-i="${i}" value="${esc(p.label)}"></div>
+        <div><label>ราคา (ตัวเลข)</label>
+          <input data-f="price" data-i="${i}" type="number" min="0" value="${p.price}"></div>
+        <div><label>หน่วย</label>
+          <input data-f="unit" data-i="${i}" value="${esc(p.unit)}" placeholder="บาท / เดือน"></div>
+      </div>
+
+      <div class="fields" style="margin-top:10px">
+        <div><label>Stripe Price ID (เว้นว่าง = ยังไม่เปิดขาย)</label>
+          <input data-f="stripe_price_id" data-i="${i}" value="${esc(p.stripe_price_id || '')}" placeholder="price_1Abc..."></div>
+        <div><label>รอบบิล</label>
+          <select data-f="billing_period" data-i="${i}">
+            ${PERIODS.map(([v, t]) => `<option value="${v}" ${p.billing_period === v ? 'selected' : ''}>${t}</option>`).join('')}
+          </select></div>
+        <div><label>ลำดับการแสดง</label>
+          <input data-f="sort" data-i="${i}" type="number" value="${p.sort}"></div>
+      </div>
+
+      <label style="display:block;font-size:12px;color:var(--muted);margin-top:12px">สิทธิประโยชน์ (บรรทัดละ 1 ข้อ)</label>
+      <textarea data-f="features" data-i="${i}">${esc((p.features || []).join('\n'))}</textarea>
+
+      <div class="foot">
+        <label><input type="checkbox" data-f="active" data-i="${i}" ${p.active ? 'checked' : ''}> เปิดขาย</label>
+        <label><input type="checkbox" data-f="highlight" data-i="${i}" ${p.highlight ? 'checked' : ''}> ติดป้าย “คุ้มที่สุด”</label>
+        <span class="grow"></span>
+        <span style="font-size:12.5px;color:var(--muted)">แก้ล่าสุด ${fmtDate(p.updated_at)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function markDirty(i) {
+  const el = document.querySelector(`[data-dirty="${i}"]`);
+  if (el) el.textContent = 'ยังไม่ได้บันทึก';
+}
+
+async function savePlan(i) {
+  const row = PLANS[i];
+  const get = f => document.querySelector(`[data-f="${f}"][data-i="${i}"]`);
+  const payload = {
+    key: row.key,
+    label: get('label').value.trim() || row.key,
+    price: parseInt(get('price').value, 10) || 0,
+    unit: get('unit').value.trim(),
+    stripe_price_id: get('stripe_price_id').value.trim() || null,
+    billing_period: get('billing_period').value,
+    sort: parseInt(get('sort').value, 10) || 0,
+    features: get('features').value.split('\n').map(s => s.trim()).filter(Boolean),
+    active: get('active').checked,
+    highlight: get('highlight').checked
+  };
+  const { error } = await supabase.from('plans').upsert(payload, { onConflict: 'key' });
+  if (error) throw error;
+}
+
+/* =============================================================
+   แท็บตั้งค่าทั่วไป
+   ============================================================= */
+let SETTINGS = [];
+
+async function fetchSettings() {
+  const { data, error } = await supabase.from('app_settings').select('*').order('sort');
+  if (error) throw error;
+  SETTINGS = data || [];
+}
+
+function drawSettings() {
+  const box = $('settings');
+  box.className = '';
+  if (!SETTINGS.length) {
+    box.innerHTML = `<div class="errbox">
+      <b>ยังไม่มีตารางตั้งค่า</b>
+      ต้องรันไฟล์ <code>saas/supabase/06_settings.sql</code> ใน SQL Editor ก่อน
+    </div>`;
+    return;
+  }
+
+  box.innerHTML = SETTINGS.map((st, i) => {
+    const v = st.value;
+    const field = st.kind === 'boolean'
+      ? `<label style="display:flex;align-items:center;gap:9px;font-size:14px">
+           <input type="checkbox" data-s="${i}" ${v === true ? 'checked' : ''}> เปิดใช้งาน
+         </label>`
+      : `<input data-s="${i}" type="${st.kind === 'number' ? 'number' : 'text'}"
+                value="${esc(String(v))}" style="max-width:220px">`;
+    return `<div class="planrow" data-si="${i}">
+      <div class="top">
+        <span class="key">${esc(st.key)}</span>
+        <b style="font-size:15px">${esc(st.label)}</b>
+        <span class="grow"></span>
+        <span class="dirty" data-sdirty="${i}"></span>
+        <button class="btn" data-sv="${i}">บันทึก</button>
+      </div>
+      <div class="fields" style="grid-template-columns:1fr">
+        <div>${field}</div>
+      </div>
+      ${st.hint ? `<p style="margin:10px 0 0;font-size:13px;color:var(--muted)">${esc(st.hint)}</p>` : ''}
+      <div class="foot"><span class="grow"></span>
+        <span style="font-size:12.5px;color:var(--muted)">แก้ล่าสุด ${fmtDate(st.updated_at)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveSetting(i) {
+  const st = SETTINGS[i];
+  const el = document.querySelector(`[data-s="${i}"]`);
+  let value;
+  if (st.kind === 'boolean') value = el.checked;
+  else if (st.kind === 'number') {
+    value = parseInt(el.value, 10);
+    if (!Number.isFinite(value) || value < 0) throw new Error('ต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ');
+  } else value = el.value;
+
+  const { error } = await supabase.from('app_settings').update({ value }).eq('key', st.key);
+  if (error) throw error;
+}
+
+/* =============================================================
+   ผู้ดูแลระบบ
+   ============================================================= */
+let ADMINS = [];
+
+async function fetchAdmins() {
+  const { data, error } = await supabase.from('admin_list').select('*');
+  if (error) throw error;
+  ADMINS = data || [];
+}
+
+function drawAdmins() {
+  const box = $('admins');
+  box.className = '';
+  if (!ADMINS.length) {
+    box.innerHTML = `<div class="errbox">
+      <b>ยังไม่มีตารางรายชื่อผู้ดูแล</b>
+      ต้องรันไฟล์ <code>saas/supabase/07_admins.sql</code> ใน SQL Editor ก่อน
+    </div>`;
+    return;
+  }
+  box.innerHTML = `<div class="tablewrap"><div class="scroll"><table>
+    <thead><tr><th>อีเมล</th><th>สถานะ</th><th>เข้าใช้ล่าสุด</th><th>หมายเหตุ</th><th></th></tr></thead>
+    <tbody>${ADMINS.map(a => `
+      <tr>
+        <td data-label="อีเมล"><b class="mono">${esc(a.email)}</b>
+          ${a.full_name ? `<br><span style="font-size:12.5px;color:var(--muted)">${esc(a.full_name)}</span>` : ''}
+        </td>
+        <td data-label="สถานะ">${a.has_signed_up
+          ? '<span class="pill p-active">ใช้งานแล้ว</span>'
+          : '<span class="pill p-trial">รอสมัครครั้งแรก</span>'}</td>
+        <td data-label="เข้าใช้ล่าสุด" class="mono">${a.has_signed_up ? fmtDate(a.last_seen_at) : '—'}</td>
+        <td data-label="หมายเหตุ">${esc(a.note || '')}</td>
+        <td><div class="acts">
+          <button class="act warn" data-adm="${esc(a.email)}"
+            ${a.email === me.email ? 'disabled title="ถอดสิทธิ์ตัวเองไม่ได้"' : ''}>ถอดสิทธิ์</button>
+        </div></td>
+      </tr>`).join('')}</tbody>
+  </table></div>
+  <div class="foot"><span>ผู้ดูแลระบบ ${ADMINS.length} คน</span></div></div>`;
+}
+
+/* =============================================================
+   เหตุการณ์
+   ============================================================= */
+document.addEventListener('click', async e => {
+  // สลับแท็บ
+  const tab = e.target.closest('[data-tab]');
+  if (tab) {
+    document.querySelectorAll('[data-tab]').forEach(b =>
+      b.setAttribute('aria-current', String(b === tab)));
+    $('tab-users').hidden    = tab.dataset.tab !== 'users';
+    $('tab-plans').hidden    = tab.dataset.tab !== 'plans';
+    $('tab-settings').hidden = tab.dataset.tab !== 'settings';
+    try {
+      if (tab.dataset.tab === 'plans'    && !PLANS.length)    { await fetchPlans();    drawPlans(); }
+      if (tab.dataset.tab === 'settings') {
+        if (!SETTINGS.length) { await fetchSettings(); drawSettings(); }
+        if (!ADMINS.length)   { await fetchAdmins();   drawAdmins(); }
+      }
+    } catch (err) { showError(err); }
+    return;
+  }
+
+  const chip = e.target.closest('[data-f]');
+  if (chip && chip.dataset.f && !chip.dataset.p) { /* input ธรรมดา ไม่ทำอะไรตอนคลิก */ }
+
+  const filterChip = e.target.closest('[data-f]:not(input):not(select):not(textarea)');
+  if (filterChip && filterChip.classList.contains('chip')) { filter = filterChip.dataset.f; drawUsers(); return; }
+
+  const chipBtn = e.target.closest('.chip[data-f]');
+  if (chipBtn) { filter = chipBtn.dataset.f; drawUsers(); return; }
+
+  if (e.target.closest('#refresh')) { await reloadUsers(); toast('รีเฟรชแล้ว'); return; }
+  if (e.target.closest('#reloadPlans')) {
+    try { await fetchPlans(); drawPlans(); toast('โหลดใหม่แล้ว'); } catch (err) { showError(err); }
+    return;
+  }
+
+  // เพิ่มแผนใหม่
+  if (e.target.closest('#addPlan')) {
+    const key = (prompt('รหัสแผน (a-z, 0-9, _ เท่านั้น) เช่น weekly หรือ team') || '').trim().toLowerCase();
+    if (!key) return;
+    if (!/^[a-z0-9_]{2,32}$/.test(key)) { showError(new Error('รหัสแผนต้องเป็น a-z 0-9 _ ยาว 2–32 ตัว')); return; }
+    try {
+      const { error } = await supabase.from('plans').insert({
+        key, label: key, price: 0, unit: 'บาท',
+        features: [], billing_period: 'monthly',
+        sort: (PLANS.at(-1)?.sort ?? 0) + 1, active: false
+      });
+      if (error) throw error;
+      await fetchPlans(); drawPlans(); clearError();
+      toast(`เพิ่มแผน ${key} แล้ว — แก้รายละเอียดแล้วกดบันทึก`);
+    } catch (err) { showError(err); }
+    return;
+  }
+
+  // บันทึก / ลบ แผน
+  const act = e.target.closest('[data-p]');
+  if (act) {
+    const i = +act.dataset.i;
+    act.disabled = true;
+    try {
+      if (act.dataset.p === 'save') {
+        await savePlan(i);
+        toast(`บันทึกแผน ${PLANS[i].key} แล้ว`);
+      } else {
+        if (!confirm(`ลบแผน "${PLANS[i].label}" ถาวร?`)) { act.disabled = false; return; }
+        const { error } = await supabase.from('plans').delete().eq('key', PLANS[i].key);
+        if (error) throw error;
+        toast('ลบแล้ว');
+      }
+      await fetchPlans(); drawPlans(); clearError();
+    } catch (err) { showError(err); act.disabled = false; }
+    return;
+  }
+
+  // เพิ่มผู้ดูแลระบบ
+  if (e.target.closest('#addAdmin')) {
+    const input = $('newAdmin');
+    const email = input.value.trim().toLowerCase();
+    if (!email.includes('@')) { showError(new Error('กรอกอีเมลให้ถูกต้อง')); return; }
+    try {
+      const { error } = await supabase.from('admin_emails').insert({ email });
+      if (error) throw error;
+      input.value = '';
+      await fetchAdmins(); drawAdmins(); clearError();
+      toast(`เพิ่ม ${email} เป็นผู้ดูแลแล้ว`);
+    } catch (err) { showError(err); }
+    return;
+  }
+
+  // ถอดสิทธิ์ผู้ดูแล
+  const adm = e.target.closest('[data-adm]');
+  if (adm) {
+    const email = adm.dataset.adm;
+    if (!confirm(`ถอดสิทธิ์ผู้ดูแลของ ${email}?`)) return;
+    adm.disabled = true;
+    try {
+      const { error } = await supabase.from('admin_emails').delete().eq('email', email);
+      if (error) throw error;
+      await fetchAdmins(); drawAdmins(); await reloadUsers(); clearError();
+      toast('ถอดสิทธิ์แล้ว');
+    } catch (err) { showError(err); adm.disabled = false; }
+    return;
+  }
+
+  // บันทึกค่าตั้งค่า
+  const sv = e.target.closest('[data-sv]');
+  if (sv) {
+    const i = +sv.dataset.sv;
+    sv.disabled = true;
+    try {
+      await saveSetting(i);
+      await fetchSettings(); drawSettings(); clearError();
+      toast('บันทึกแล้ว');
+    } catch (err) { showError(err); sv.disabled = false; }
+    return;
+  }
+
+  // การกระทำกับผู้ใช้
+  const ua = e.target.closest('[data-a]');
+  if (!ua) return;
+  const id = ua.dataset.id;
+  const target = USERS.find(u => u.id === id);
+  const who = target?.full_name || target?.email || 'ผู้ใช้รายนี้';
+  ua.disabled = true;
+  try {
+    if (ua.dataset.a === 'extend') {
+      const { error } = await supabase.rpc('admin_extend_subscription', { target: id, days: 30 });
+      if (error) throw error;
+      toast(`ต่ออายุ ${who} อีก 30 วันแล้ว`);
+    } else {
+      const next = ua.dataset.a === 'suspend' ? 'suspended' : 'active';
+      const { error } = await supabase.rpc('admin_set_status', { target: id, new_status: next });
+      if (error) throw error;
+      toast(next === 'suspended' ? `ระงับ ${who} แล้ว` : `คืนสิทธิ์ ${who} แล้ว`);
+    }
+    await reloadUsers();
+  } catch (err) { showError(err); ua.disabled = false; }
+});
+
+function markSettingDirty(i) {
+  const el = document.querySelector(`[data-sdirty="${i}"]`);
+  if (el) el.textContent = 'ยังไม่ได้บันทึก';
+}
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.f && t.dataset.i !== undefined && t.closest('.planrow')) markDirty(+t.dataset.i);
+  if (t.dataset.s !== undefined) markSettingDirty(+t.dataset.s);
+  if (t.id === 'q') { query = t.value; drawUsers(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'newAdmin') {
+    e.preventDefault();
+    $('addAdmin').click();
+  }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.f && t.dataset.i !== undefined && t.closest('.planrow')) markDirty(+t.dataset.i);
+  if (t.dataset.s !== undefined) markSettingDirty(+t.dataset.s);
+});
+
+await reloadUsers();
+</script>
+</body>
+</html>

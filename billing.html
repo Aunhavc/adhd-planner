@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แผนและการชำระเงิน · Ultimate ADHD Planner</title>
+<link rel="stylesheet" href="styles/console.css">
+<style>
+[hidden]{display:none!important}
+.editbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;
+  background:var(--surface);border:1px dashed var(--accent-line);border-radius:var(--r);padding:12px 16px}
+.editbar .who{font-size:13px;color:var(--muted)}
+.plan .edit{display:grid;gap:9px;margin:8px 0 14px}
+.plan .edit label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:3px}
+.plan .edit input,.plan .edit textarea{width:100%;background:var(--ground);
+  border:1px solid var(--line);border-radius:8px;padding:8px 11px;
+  font:inherit;font-size:14px;color:var(--ink)}
+.plan .edit textarea{min-height:92px;resize:vertical;font-size:13px;line-height:1.65}
+.plan .edit input:focus,.plan .edit textarea:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.plan .edit .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.plan .checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:2px}
+.plan .checks label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2);margin:0}
+#trialBox{display:flex;align-items:center;gap:8px}
+#trialBox label,#trialBox span{font-size:13px;color:var(--muted)}
+#trialBox input{width:78px;background:var(--ground);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;font:inherit;font-size:14px;color:var(--ink);
+  text-align:center;font-variant-numeric:tabular-nums}
+#trialBox input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%97%91%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div id="bar"></div>
+<div class="wrap">
+  <div id="gate" class="loading">กำลังโหลด…</div>
+
+  <section id="page" hidden>
+    <div class="head">
+      <div>
+        <h1>แผนและการชำระเงิน</h1>
+        <p>ซื้อครั้งเดียวหรือรายเดือนก็ได้ — ข้อมูลของคุณไม่หายไม่ว่าจะเลือกแบบไหน</p>
+      </div>
+    </div>
+
+    <div id="status"></div>
+    <div id="err"></div>
+
+    <div class="editbar" id="editbar" hidden>
+      <button class="btn" id="toggleEdit">✏️ แก้ไขแผนและราคา</button>
+      <span class="who" id="editHint">คุณเป็นแอดมิน แก้ได้จากหน้านี้เลย ไม่ต้องไปหน้าอื่น</span>
+      <span style="flex:1"></span>
+      <span id="trialBox" hidden>
+        <label for="trialDays">ทดลองใช้ฟรี</label>
+        <input id="trialDays" type="number" min="0" max="365" value="7">
+        <span>วัน</span>
+        <button class="btn" id="saveTrial">บันทึก</button>
+      </span>
+    </div>
+
+    <div class="plans" id="plans"></div>
+
+    <div class="panel" style="margin-top:22px">
+      <h2>ข้อมูลของคุณเป็นของคุณ</h2>
+      <p class="lead" style="margin-bottom:0">
+        ถ้าหยุดจ่าย เราไม่ลบข้อมูลทิ้งและไม่ล็อกไว้ — คุณยัง<b>เปิดอ่านและดาวน์โหลดออกไปเป็นไฟล์ได้เสมอ</b>
+        สิ่งที่หยุดคือการบันทึกการแก้ไขใหม่และการซิงก์ข้ามเครื่องเท่านั้น
+      </p>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script type="module">
+import {
+  supabase, configured, configError, requireSession, getAccount, renderAppBar,
+  fmtDate, esc, PLAN_LABEL, STATUS_LABEL
+} from './lib/auth.js';
+
+const $ = id => document.getElementById(id);
+const cfg = window.PLANNER_CONFIG || {};
+const gate = $('gate');
+
+if (!configured) { configError(gate); throw new Error('config'); }
+
+const session = await requireSession();
+if (!session) throw new Error('no session');
+
+const me = await getAccount();
+$('bar').innerHTML = renderAppBar(me, 'billing.html');
+gate.remove();
+$('page').hidden = false;
+
+let tt;
+function toast(m) {
+  const t = $('toast'); t.textContent = m; t.classList.add('on');
+  clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600);
+}
+const showErr = html => { $('err').innerHTML = html; };
+const clearErr = () => { $('err').innerHTML = ''; };
+
+/* ---------------- สถานะปัจจุบัน ---------------- */
+const st = STATUS_LABEL[me.status] || { t: me.status, c: 'p-trial' };
+const ends = me.plan === 'lifetime'
+  ? 'ไม่มีวันหมดอายุ'
+  : (me.current_period_end ? `ถึง ${fmtDate(me.current_period_end)}` : '—');
+
+$('status').innerHTML = `
+  <div class="banner ${me.has_access ? 'ok' : 'bad'}">
+    <span class="grow">
+      <b>แผนปัจจุบัน: ${esc(PLAN_LABEL[me.plan] || me.plan)}
+         <span class="pill ${st.c}">${esc(st.t)}</span></b>
+      ${me.has_access ? ends : 'สิทธิ์หมดอายุแล้ว — บันทึกการแก้ไขใหม่ไม่ได้จนกว่าจะต่ออายุ'}
+    </span>
+    <a class="btn" href="app.html">กลับไปที่แพลนเนอร์</a>
+  </div>`;
+
+/* ---------------- โหลดแผนราคา ----------------
+   อ่านจากตาราง plans เป็นหลัก ถ้ายังไม่มีตารางจะถอยไปใช้ค่าใน config.js */
+let PLANS = [];
+let fromDb = false;
+
+async function loadPlans() {
+  try {
+    const { data, error } = await supabase.from('plans').select('*').order('sort');
+    if (error) throw error;
+    if (data && data.length) { PLANS = data; fromDb = true; return; }
+  } catch (e) {
+    console.warn('[billing] อ่านตาราง plans ไม่ได้ ใช้ค่าจาก config.js แทน', e);
+  }
+  const fb = cfg.PRICES || {};
+  const F = {
+    monthly:  ['ใช้ครบทั้ง 15 โมดูล', 'ซิงก์ข้ามเครื่องไม่จำกัด', 'ยกเลิกได้ทุกเมื่อ'],
+    yearly:   ['ทุกอย่างของรายเดือน', 'ถูกกว่าจ่ายรายเดือน 12 ครั้ง', 'จ่ายปีละครั้ง ไม่ต้องจำ'],
+    lifetime: ['จ่ายครั้งเดียวจบ', 'ไม่มีค่าใช้จ่ายรายเดือนอีก', 'อัปเดตในอนาคตฟรี']
+  };
+  PLANS = ['monthly', 'yearly', 'lifetime'].map(k => ({
+    key: k,
+    label: fb[k]?.label || PLAN_LABEL[k],
+    price: fb[k]?.price ?? 0,
+    unit: fb[k]?.unit || '',
+    features: F[k],
+    stripe_price_id: fb[k]?.id || null,
+    billing_period: k === 'lifetime' ? 'once' : k,
+    highlight: k === 'yearly',
+    active: true
+  }));
+}
+
+await loadPlans();
+
+/* ---------------- ระยะทดลองใช้ฟรี (ค่าเดียวกับที่หน้า admin ใช้) ---------------- */
+async function loadTrialDays() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings').select('value').eq('key', 'trial_days').maybeSingle();
+    if (error) throw error;
+    if (data) $('trialDays').value = data.value;
+  } catch (e) {
+    console.warn('[billing] อ่านค่า trial_days ไม่ได้', e);
+  }
+}
+if (me.is_admin) await loadTrialDays();
+
+/* ---------------- แสดงผล ---------------- */
+let editing = false;
+if (me.is_admin) $('editbar').hidden = false;
+
+function viewCard(p) {
+  const isCurrent = me.plan === p.key && me.has_access;
+  return `<div class="plan ${p.highlight ? 'best' : ''}">
+    <h3>${esc(p.label)}</h3>
+    <div class="price">${Number(p.price || 0).toLocaleString('th-TH')}<small> ${esc(p.unit || '')}</small></div>
+    <ul>${(p.features || []).map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+    <button class="btn ${p.highlight ? 'primary' : ''}"
+            data-plan="${esc(p.key)}" ${isCurrent || !p.stripe_price_id ? 'disabled' : ''}>
+      ${isCurrent ? 'แผนปัจจุบัน' : (p.stripe_price_id ? 'เลือกแผนนี้' : 'ยังไม่เปิดขาย')}
+    </button>
+  </div>`;
+}
+
+function editCard(p, i) {
+  const feat = (p.features || []).join('\n');
+  return `<div class="plan ${p.highlight ? 'best' : ''}">
+    <div class="edit">
+      <div><label>ชื่อแผน</label>
+        <input data-e="label" data-i="${i}" value="${esc(p.label)}"></div>
+      <div class="two">
+        <div><label>ราคา</label>
+          <input data-e="price" data-i="${i}" type="number" min="0" value="${Number(p.price || 0)}"></div>
+        <div><label>หน่วย</label>
+          <input data-e="unit" data-i="${i}" value="${esc(p.unit || '')}"></div>
+      </div>
+      <div><label>สิทธิประโยชน์ — บรรทัดละ 1 ข้อ</label>
+        <textarea data-e="features" data-i="${i}">${esc(feat)}</textarea></div>
+      <div><label>Stripe Price ID (เว้นว่าง = ยังไม่เปิดขาย)</label>
+        <input data-e="stripe" data-i="${i}" value="${esc(p.stripe_price_id || '')}" placeholder="price_1Abc..."></div>
+      <div class="checks">
+        <label><input type="checkbox" data-e="active" data-i="${i}" ${p.active !== false ? 'checked' : ''}> เปิดขาย</label>
+        <label><input type="checkbox" data-e="highlight" data-i="${i}" ${p.highlight ? 'checked' : ''}> คุ้มที่สุด</label>
+      </div>
+    </div>
+    <button class="btn primary" data-save="${i}">บันทึกแผนนี้</button>
+  </div>`;
+}
+
+function draw() {
+  $('plans').innerHTML = PLANS.map((p, i) => editing ? editCard(p, i) : viewCard(p)).join('');
+
+  const stripeReady = PLANS.some(p => p.stripe_price_id);
+  if (!editing && !stripeReady) {
+    showErr(`<div class="banner warn"><span class="grow">
+      <b>ยังไม่ได้เปิดระบบชำระเงินอัตโนมัติ</b>
+      ตอนนี้แอดมินให้สิทธิ์ด้วยมือจากหน้าจัดการผู้ใช้ — ติดต่อแอดมินเพื่อเปิดใช้งานได้เลย
+    </span></div>`);
+  } else if (!editing) {
+    clearErr();
+  }
+}
+draw();
+
+/* ---------------- เหตุการณ์ ---------------- */
+document.addEventListener('click', async e => {
+
+  /* สลับโหมดแก้ไข */
+  if (e.target.closest('#toggleEdit')) {
+    editing = !editing;
+    $('toggleEdit').textContent = editing ? '← กลับไปมุมมองลูกค้า' : '✏️ แก้ไขแผนและราคา';
+    $('editHint').textContent = editing
+      ? 'แก้เสร็จแล้วกด "บันทึกแผนนี้" ในแต่ละการ์ด'
+      : 'คุณเป็นแอดมิน แก้ได้จากหน้านี้เลย ไม่ต้องไปหน้าอื่น';
+    $('trialBox').hidden = !editing;
+    if (editing) clearErr();
+    draw();
+    return;
+  }
+
+  /* บันทึกระยะทดลองใช้ฟรี */
+  if (e.target.closest('#saveTrial')) {
+    const btn = e.target.closest('#saveTrial');
+    const days = parseInt($('trialDays').value, 10);
+    if (!Number.isFinite(days) || days < 0 || days > 365) {
+      showErr('<div class="errbox"><b>จำนวนวันต้องอยู่ระหว่าง 0 ถึง 365</b></div>');
+      return;
+    }
+    btn.disabled = true;
+    const t0 = btn.textContent;
+    btn.textContent = 'กำลังบันทึก…';
+    try {
+      const { error } = await supabase
+        .from('app_settings').update({ value: days }).eq('key', 'trial_days');
+      if (error) throw error;
+      clearErr();
+      toast(`ตั้งระยะทดลองใช้เป็น ${days} วันแล้ว — มีผลกับผู้สมัครใหม่`);
+    } catch (err) {
+      showErr(`<div class="errbox"><b>บันทึกไม่สำเร็จ</b><code>${esc(err.message || err)}</code></div>`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t0;
+    }
+    return;
+  }
+
+  /* บันทึกแผน */
+  const sv = e.target.closest('[data-save]');
+  if (sv) {
+    const i = +sv.dataset.save;
+    const get = f => document.querySelector(`[data-e="${f}"][data-i="${i}"]`);
+    const payload = {
+      key: PLANS[i].key,
+      label: get('label').value.trim() || PLANS[i].key,
+      price: parseInt(get('price').value, 10) || 0,
+      unit: get('unit').value.trim(),
+      features: get('features').value.split('\n').map(x => x.trim()).filter(Boolean),
+      stripe_price_id: get('stripe').value.trim() || null,
+      billing_period: PLANS[i].billing_period || 'monthly',
+      active: get('active').checked,
+      highlight: get('highlight').checked
+    };
+
+    sv.disabled = true;
+    const label0 = sv.textContent;
+    sv.textContent = 'กำลังบันทึก…';
+    try {
+      const { error } = await supabase.from('plans').upsert(payload, { onConflict: 'key' });
+      if (error) throw error;
+      Object.assign(PLANS[i], payload);
+      fromDb = true;
+      clearErr();
+      draw();
+      toast(`บันทึก "${payload.label}" แล้ว`);
+    } catch (err) {
+      sv.disabled = false;
+      sv.textContent = label0;
+      const msg = err.message || String(err);
+      const noTable = /PGRST205|schema cache|does not exist/i.test(msg);
+      const noRight = /42501|row-level security|permission denied/i.test(msg);
+      showErr(noTable
+        ? `<div class="errbox"><b>ยังไม่มีตารางแผนราคาในฐานข้อมูล</b>
+             ต้องรัน <code>saas/supabase/05_finish_setup.sql</code> ใน Supabase → SQL Editor ครั้งเดียวก่อน</div>`
+        : noRight
+        ? `<div class="errbox"><b>บัญชีนี้ไม่มีสิทธิ์แก้แผนราคา</b>
+             ต้องเป็นแอดมินเท่านั้น — ฐานข้อมูลเป็นผู้ปฏิเสธ ไม่ใช่หน้าเว็บ</div>`
+        : `<div class="errbox"><b>บันทึกไม่สำเร็จ</b><code>${esc(msg)}</code></div>`);
+    }
+    return;
+  }
+
+  /* ไปหน้าชำระเงินของ Stripe */
+  const btn = e.target.closest('[data-plan]');
+  if (!btn) return;
+  const plan = PLANS.find(p => p.key === btn.dataset.plan);
+  if (!plan?.stripe_price_id) return;
+
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'กำลังเปิดหน้าชำระเงิน…';
+  try {
+    const { data, error } = await supabase.functions.invoke('create-checkout', {
+      body: {
+        price_id: plan.stripe_price_id,
+        mode: plan.billing_period === 'once' ? 'payment' : 'subscription',
+        success_url: new URL('billing.html?paid=1', location.href).href,
+        cancel_url: location.href
+      }
+    });
+    if (error) throw error;
+    if (!data?.url) throw new Error('ไม่ได้รับลิงก์ชำระเงินกลับมา');
+    location.href = data.url;
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = original;
+    showErr(`<div class="errbox"><b>เปิดหน้าชำระเงินไม่สำเร็จ</b>
+      <code>${esc(err.message || err)}</code><br><br>
+      ตรวจว่า deploy Edge Function <code>create-checkout</code> และตั้ง secret ของ Stripe แล้วหรือยัง (ดู STRIPE.md)</div>`);
+  }
+});
+
+if (new URLSearchParams(location.search).get('paid')) {
+  toast('ชำระเงินสำเร็จ — สิทธิ์จะอัปเดตภายในไม่กี่วินาที');
+  setTimeout(() => location.replace('billing.html'), 4000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เข้าสู่ระบบ · Ultimate ADHD Planner</title>
+<link rel="stylesheet" href="styles/console.css">
+<style>[hidden]{display:none!important}</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="wrap">
+  <div class="login">
+    <div class="mark">◑</div>
+    <h1 id="title">Ultimate ADHD Planner</h1>
+    <p class="sub">แพลนเนอร์ที่ออกแบบตามการทำงานของสมองสมาธิสั้น<br>ข้อมูลซิงก์ทุกเครื่องที่คุณล็อกอิน</p>
+
+    <div id="err"></div>
+
+    <button class="gbtn" id="go">
+      <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9.1h12.4c-.5 2.9-2.2 5.3-4.6 7l7.6 5.9c4.4-4.1 6.7-10.1 6.7-17.4z"/>
+        <path fill="#FBBC05" d="M10.4 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6.1C1 16.4 0 20.1 0 24s1 7.6 2.6 10.8l7.8-6.1z"/>
+        <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.8 2.3-8.3 2.3-6.3 0-11.7-3.7-13.6-9.9l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/>
+      </svg>
+      ลงชื่อเข้าใช้ด้วย Google
+    </button>
+
+    <div id="emailBox" style="margin-top:18px;text-align:start" hidden>
+      <div id="divider" style="display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:12.5px">
+        <span style="flex:1;height:1px;background:var(--line)"></span>หรือ<span style="flex:1;height:1px;background:var(--line)"></span>
+      </div>
+      <label class="field" for="email" style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px">เข้าสู่ระบบด้วยอีเมล</label>
+      <div style="display:flex;gap:8px">
+        <input class="search" id="email" type="email" autocomplete="email"
+               placeholder="you@example.com" style="flex:1;min-width:0">
+        <button class="btn primary" id="sendLink" style="white-space:nowrap">ส่งลิงก์</button>
+      </div>
+      <p class="legal" style="margin-top:10px">เราจะส่งลิงก์เข้าสู่ระบบไปที่อีเมลของคุณ ไม่ต้องตั้งรหัสผ่าน</p>
+    </div>
+
+    <p class="legal">
+      ผู้ใช้ใหม่ได้ทดลองใช้ฟรี <b id="trial">7</b> วันอัตโนมัติ ไม่ต้องผูกบัตร<br>
+      เราเก็บแค่ชื่อ อีเมล และรูปโปรไฟล์เท่านั้น
+    </p>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+import { supabase, configured, configError, getSession, signInWithGoogle,
+         signInWithEmail, enabledProviders, esc } from './lib/auth.js';
+
+const cfg = window.PLANNER_CONFIG || {};
+document.getElementById('title').textContent = cfg.APP_NAME || 'Ultimate ADHD Planner';
+// จำนวนวันทดลองใช้อ่านจากฐานข้อมูล (แอดมินแก้ได้จากหน้า admin) ถ้าอ่านไม่ได้ใช้ค่าใน config
+document.getElementById('trial').textContent = cfg.TRIAL_DAYS ?? 7;
+(async () => {
+  try {
+    const r = await fetch(`${cfg.SUPABASE_URL}/rest/v1/app_settings?key=eq.trial_days&select=value`,
+      { headers: { apikey: cfg.SUPABASE_ANON_KEY } });
+    const j = await r.json();
+    if (Array.isArray(j) && j.length) document.getElementById('trial').textContent = j[0].value;
+  } catch { /* ใช้ค่าจาก config ต่อไป */ }
+})();
+
+const err = document.getElementById('err');
+const btn = document.getElementById('go');
+const next = new URLSearchParams(location.search).get('next') || 'app.html';
+
+if (!configured) {
+  configError(err);
+  btn.disabled = true;
+  btn.style.opacity = .5;
+} else {
+  // ล็อกอินอยู่แล้วก็ข้ามหน้านี้ไปเลย
+  const session = await getSession();
+  if (session) location.replace(next);
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'กำลังพาไปหน้า Google…';
+    try {
+      await signInWithGoogle(next);
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'ลองอีกครั้ง';
+      err.innerHTML = `<div class="errbox"><b>ล็อกอินไม่สำเร็จ</b><code>${esc(e.message)}</code></div>`;
+    }
+  });
+
+  // โชว์เฉพาะวิธีล็อกอินที่เปิดใช้งานจริงบนเซิร์ฟเวอร์
+  const providers = await enabledProviders();
+  if (!providers.google) {
+    // ต้องสั่ง display ตรง ๆ เพราะ .gbtn ตั้ง display:flex ไว้ แอตทริบิวต์ hidden จะแพ้
+    btn.style.display = 'none';
+    document.getElementById('divider').hidden = true;
+  }
+  if (providers.email) {
+    const box = document.getElementById('emailBox');
+    box.hidden = false;
+    const input = document.getElementById('email');
+    const send = document.getElementById('sendLink');
+
+    const submit = async () => {
+      const addr = input.value.trim();
+      if (!addr || !addr.includes('@')) {
+        err.innerHTML = '<div class="errbox"><b>กรอกอีเมลให้ถูกต้องก่อน</b></div>';
+        return;
+      }
+      send.disabled = true;
+      send.textContent = 'กำลังส่ง…';
+      try {
+        await signInWithEmail(addr, next);
+        err.innerHTML = `<div class="banner ok"><span class="grow">
+          <b>ส่งลิงก์ไปที่ ${esc(addr)} แล้ว</b>
+          เปิดอีเมลแล้วกดลิงก์เพื่อเข้าสู่ระบบ (เช็คกล่องจดหมายขยะด้วยถ้าไม่เจอ)</span></div>`;
+        send.textContent = 'ส่งอีกครั้ง';
+      } catch (e) {
+        err.innerHTML = `<div class="errbox"><b>ส่งลิงก์ไม่สำเร็จ</b><code>${esc(e.message)}</code></div>`;
+        send.textContent = 'ลองใหม่';
+      } finally {
+        send.disabled = false;
+      }
+    };
+
+    send.addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  }
+}
+</script>
+</body>
+</html>

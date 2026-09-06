@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultimate ADHD Planner — แพลนเนอร์สำหรับสมองที่หลุดโฟกัสง่าย</title>
+<meta name="description" content="แพลนเนอร์ที่ออกแบบตามการทำงานของสมองสมาธิสั้น ครบ 15 โมดูล ซิงก์ทุกเครื่อง ทดลองใช้ฟรี">
+<meta property="og:title" content="Ultimate ADHD Planner">
+<meta property="og:description" content="แพลนเนอร์ที่ออกแบบตามการทำงานของสมองสมาธิสั้น — ไม่ใช่ To-Do List ธรรมดา">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="styles/console.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<style>
+[hidden]{display:none!important}
+.nav{display:flex;align-items:center;gap:14px;padding:16px 22px;max-width:1080px;margin:0 auto}
+.nav .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.nav .logo i{width:30px;height:30px;border-radius:9px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-style:normal;font-size:16px}
+.nav a.cta{margin-inline-start:auto;text-decoration:none}
+
+.hero{max-width:760px;margin:0 auto;padding:52px 22px 40px;text-align:center}
+.hero .eyebrow{display:inline-block;background:var(--accent-soft);color:var(--accent);
+  border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600;margin-bottom:20px}
+.hero h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;line-height:1.2}
+.hero p.sub{font-size:17px;color:var(--ink-2);margin:16px auto 28px;max-width:560px;line-height:1.75}
+.hero .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.hero .fine{margin-top:14px;font-size:13px;color:var(--muted)}
+.btn.big{padding:13px 26px;font-size:15.5px;border-radius:11px}
+
+.section{max-width:1080px;margin:0 auto;padding:36px 22px}
+.section > h2{font-size:24px;text-align:center;letter-spacing:-.01em}
+.section > p.lead{text-align:center;color:var(--muted);margin:10px auto 28px;max-width:600px;font-size:15px}
+
+.pains{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.pain{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.pain b{display:block;font-size:15.5px;margin-bottom:7px}
+.pain span{font-size:14px;color:var(--ink-2);line-height:1.7}
+.pain .mark{font-size:20px;display:block;margin-bottom:10px}
+
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px}
+.mod{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:11px 14px;font-size:14px;display:flex;gap:9px;align-items:center}
+.mod b{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-weight:600}
+
+.foot{border-top:1px solid var(--line);margin-top:40px}
+.foot .in{max-width:1080px;margin:0 auto;padding:26px 22px;display:flex;gap:16px;
+  flex-wrap:wrap;align-items:center;font-size:13.5px;color:var(--muted)}
+.foot a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><i>◑</i> <span id="brand">Ultimate ADHD Planner</span></div>
+  <a class="btn cta" href="login.html">เข้าสู่ระบบ</a>
+</nav>
+
+<header class="hero">
+  <span class="eyebrow" id="trialBadge">ทดลองใช้ฟรี 7 วัน · ไม่ต้องผูกบัตร</span>
+  <h1>แพลนเนอร์ที่ออกแบบตามสมองคุณ<br>ไม่ใช่ให้คุณฝืนตามแพลนเนอร์</h1>
+  <p class="sub">
+    To-Do List ทั่วไปพังกับคนสมาธิสั้น เพราะรายการยาวเป็นหางว่าวทำให้สมองช็อกและปฏิเสธการลงมือทำ
+    เราออกแบบใหม่ทั้งหมดตามหลักการลดภาระทางปัญญา
+  </p>
+  <div class="actions">
+    <a class="btn primary big" href="login.html">เริ่มใช้ฟรีเลย</a>
+    <a class="btn big" href="#pricing">ดูราคา</a>
+  </div>
+  <p class="fine">ล็อกอินด้วยอีเมล ไม่ต้องตั้งรหัสผ่าน · ข้อมูลซิงก์ทุกเครื่อง</p>
+</header>
+
+<section class="section">
+  <h2>ทำไมแพลนเนอร์ทั่วไปถึงใช้ไม่ได้ผล</h2>
+  <p class="lead">เราแก้ 4 ปัญหาที่ทำให้คุณเลิกใช้แพลนเนอร์ทุกเล่มที่ผ่านมา</p>
+  <div class="pains">
+    <div class="pain"><span class="mark">😵‍💫</span>
+      <b>เห็นงานเยอะแล้วช็อก</b>
+      <span>เราให้เลือกแค่ <b>3 งานต่อวัน</b> เท่านั้น เกินกว่านั้นสมองจะปฏิเสธการเริ่ม</span></div>
+    <div class="pain"><span class="mark">⏳</span>
+      <b>ประเมินเวลาไม่เป็น</b>
+      <span>ระบบย่อยงานใหญ่เป็นสเตปเล็กจนแต่ละขั้นเริ่มได้ทันทีโดยไม่ต้องรวบรวมพลังใจ</span></div>
+    <div class="pain"><span class="mark">😔</span>
+      <b>ขาดไป 3 วันแล้วเลิกใช้</b>
+      <span>ไม่มี streak มาไล่ล่า ไม่มีหน้าว่างให้รู้สึกผิด กลับมาเมื่อไหร่ก็เริ่มต่อได้</span></div>
+    <div class="pain"><span class="mark">🔋</span>
+      <b>ฝืนทำงานวันแบตหมด</b>
+      <span>บันทึกระดับพลังงานแล้วระบบปรับแผนให้ วันไหนไม่ไหวก็เหลืองานเดียวพอ</span></div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>ครบ 15 โมดูลในที่เดียว</h2>
+  <p class="lead">ตั้งแต่ตื่นนอนจนเข้านอน ไม่ต้องสลับไปมาหลายแอป</p>
+  <div class="mods">
+    <div class="mod"><b>01</b> หน้าปก</div>
+    <div class="mod"><b>02</b> Brain Dump</div>
+    <div class="mod"><b>03</b> Dopamine Menu</div>
+    <div class="mod"><b>04</b> Rule of 3</div>
+    <div class="mod"><b>05</b> ภาพรวมสัปดาห์</div>
+    <div class="mod"><b>06</b> ย่อยเป้าหมายใหญ่</div>
+    <div class="mod"><b>07</b> เช็กลิสต์กิจวัตร</div>
+    <div class="mod"><b>08</b> Not Today List</div>
+    <div class="mod"><b>09</b> พลังงาน &amp; อารมณ์</div>
+    <div class="mod"><b>10</b> งานจิ๋ว 5 นาที</div>
+    <div class="mod"><b>11</b> วางแผนมื้ออาหาร</div>
+    <div class="mod"><b>12</b> คำใบ้รหัสผ่าน</div>
+    <div class="mod"><b>13</b> ติดตามบิล</div>
+    <div class="mod"><b>14</b> ทบทวนแบบใจดี</div>
+    <div class="mod"><b>15</b> พื้นที่โน้ตอิสระ</div>
+    <div class="mod"><b>+</b> สรุปสิ้นวัน</div>
+  </div>
+</section>
+
+<section class="section" id="pricing">
+  <h2>ราคา</h2>
+  <p class="lead" id="pricingLead">ทดลองใช้ฟรีก่อน ไม่ต้องผูกบัตร ชอบค่อยจ่าย</p>
+  <div class="plans" id="plans"><p class="loading">กำลังโหลดราคา…</p></div>
+</section>
+
+<section class="section">
+  <div class="panel">
+    <h2>ข้อมูลของคุณเป็นของคุณ</h2>
+    <p class="lead" style="text-align:start;margin:8px 0 0;max-width:none">
+      ถ้าหยุดจ่าย เราไม่ลบข้อมูลและไม่ล็อกไว้ — คุณยังเปิดอ่านและดาวน์โหลดออกไปเป็นไฟล์ได้เสมอ
+      สิ่งที่หยุดคือการบันทึกการแก้ไขใหม่และการซิงก์ข้ามเครื่องเท่านั้น
+    </p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="in">
+    <span>© <span id="year">2026</span> Ultimate ADHD Planner</span>
+    <span style="flex:1"></span>
+    <a href="login.html">เข้าสู่ระบบ</a>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+/* หน้านี้เปิดได้โดยไม่ต้องล็อกอิน จึงเรียก REST ตรง ๆ ด้วย anon key
+   ไม่ต้องโหลดไลบรารี Supabase ให้หน้าหนัก */
+(async () => {
+  const cfg = window.PLANNER_CONFIG || {};
+  document.getElementById('year').textContent = new Date().getFullYear();
+  if (cfg.APP_NAME) document.getElementById('brand').textContent = cfg.APP_NAME;
+
+  const esc = v => String(v ?? '').replace(/[&<>"]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const api = async path => {
+    const r = await fetch(`${cfg.SUPABASE_URL}/rest/v1/${path}`, {
+      headers: { apikey: cfg.SUPABASE_ANON_KEY }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  };
+
+  // ระยะทดลองใช้ฟรี
+  try {
+    const s = await api('app_settings?key=eq.trial_days&select=value');
+    if (s.length) {
+      document.getElementById('trialBadge').textContent =
+        `ทดลองใช้ฟรี ${s[0].value} วัน · ไม่ต้องผูกบัตร`;
+      document.getElementById('pricingLead').textContent =
+        `ทดลองใช้ฟรี ${s[0].value} วันก่อน ไม่ต้องผูกบัตร ชอบค่อยจ่าย`;
+    }
+  } catch (e) { console.warn('อ่านค่าทดลองใช้ไม่ได้', e); }
+
+  // แผนราคา
+  const box = document.getElementById('plans');
+  try {
+    const plans = await api('plans?active=is.true&select=*&order=sort');
+    if (!plans.length) throw new Error('ไม่มีแผนที่เปิดขาย');
+    box.innerHTML = plans.map(p => `
+      <div class="plan ${p.highlight ? 'best' : ''}">
+        <h3>${esc(p.label)}</h3>
+        <div class="price">${Number(p.price || 0).toLocaleString('th-TH')}<small> ${esc(p.unit || '')}</small></div>
+        <ul>${(p.features || []).map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+        <a class="btn ${p.highlight ? 'primary' : ''}" href="login.html"
+           style="text-align:center;text-decoration:none">เริ่มทดลองใช้ฟรี</a>
+      </div>`).join('');
+  } catch (e) {
+    console.warn('โหลดราคาไม่ได้', e);
+    box.innerHTML = `<div class="panel" style="grid-column:1/-1;text-align:center">
+      <p class="lead" style="margin:0">ดูราคาได้หลังเข้าสู่ระบบ —
+        <a href="login.html">เริ่มทดลองใช้ฟรี</a></p></div>`;
+  }
+})();
+</script>
+</body>
+</html>
