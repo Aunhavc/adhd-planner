@@ -27,6 +27,11 @@
 .planrow .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
 .planrow .foot label{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-2)}
 .dirty{color:var(--warn);font-size:12.5px}
+select.grant{border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:7px;padding:4px 8px;font:inherit;font-size:12.5px;cursor:pointer}
+select.grant:hover{border-color:var(--accent);color:var(--accent)}
+select.grant:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+select.grant:disabled{opacity:.5;cursor:wait}
 @media (max-width:700px){ .fields{grid-template-columns:1fr} }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%97%91%3C/text%3E%3C/svg%3E">
@@ -237,7 +242,14 @@ function drawUsers() {
       <td data-label="เข้าใช้ล่าสุด" class="mono">${fmtDate(u.last_seen_at)}</td>
       <td data-label="ยอดรวม" class="mono">${fmtBaht(u.total_paid_minor)}</td>
       <td><div class="acts">
-        <button class="act" data-a="extend" data-id="${u.id}">ต่อ 30 วัน</button>
+        <select class="act grant" data-grant="${u.id}" aria-label="ให้สิทธิ์">
+          <option value="">ให้สิทธิ์…</option>
+          <option value="d30">ต่อ 30 วัน</option>
+          <option value="d90">ต่อ 90 วัน</option>
+          <option value="d180">ต่อ 6 เดือน</option>
+          <option value="yearly">ให้ 1 ปี</option>
+          <option value="lifetime">ตลอดชีพ</option>
+        </select>
         <button class="act ${u.status === 'suspended' ? '' : 'warn'}"
                 data-a="${u.status === 'suspended' ? 'unsuspend' : 'suspend'}"
                 data-id="${u.id}">${u.status === 'suspended' ? 'คืนสิทธิ์' : 'ระงับ'}</button>
@@ -607,7 +619,37 @@ document.addEventListener('keydown', e => {
   }
 });
 
-document.addEventListener('change', e => {
+/* ให้สิทธิ์แบบเลือกระยะเวลา — 30/90/180 วัน, 1 ปี, ตลอดชีพ */
+const GRANTS = {
+  d30:      { rpc: 'admin_extend_subscription', args: { days: 30 },                      msg: 'ต่ออายุ 30 วัน' },
+  d90:      { rpc: 'admin_extend_subscription', args: { days: 90 },                      msg: 'ต่ออายุ 90 วัน' },
+  d180:     { rpc: 'admin_extend_subscription', args: { days: 180 },                     msg: 'ต่ออายุ 6 เดือน' },
+  yearly:   { rpc: 'admin_set_plan', args: { new_plan: 'yearly',   days: 365 },          msg: 'ให้แผนรายปี' },
+  lifetime: { rpc: 'admin_set_plan', args: { new_plan: 'lifetime', days: null },         msg: 'ให้แผนตลอดชีพ' }
+};
+
+document.addEventListener('change', async e => {
+  const sel = e.target.closest('[data-grant]');
+  if (sel) {
+    const g = GRANTS[sel.value];
+    if (!g) return;
+    const id = sel.dataset.grant;
+    const u = USERS.find(x => x.id === id);
+    const who = u?.full_name || u?.email || 'ผู้ใช้รายนี้';
+    sel.disabled = true;
+    try {
+      const { error } = await supabase.rpc(g.rpc, { target: id, ...g.args });
+      if (error) throw error;
+      await reloadUsers();
+      toast(`${g.msg} ให้ ${who} แล้ว`);
+    } catch (err) {
+      showError(err);
+      sel.disabled = false;
+      sel.value = '';
+    }
+    return;
+  }
+
   const t = e.target;
   if (t.dataset.f && t.dataset.i !== undefined && t.closest('.planrow')) markDirty(+t.dataset.i);
   if (t.dataset.s !== undefined) markSettingDirty(+t.dataset.s);
